@@ -97,8 +97,8 @@ library(leaflet)
 floods_co %>%
   leaflet() %>%
   addTiles() %>%
-  addCircles(weight = 1, radius = floods_co$freq * 1000)
+  addCircles(weight = 1, radius = floods_co$freq * 500)
 
 ```
 
-**Code**: https://github.com/jbeleno/developing_data_products/week2/hw1/
+**Code**: https://github.com/jbeleno/developing_data_products/tree/master/week2/hw1
