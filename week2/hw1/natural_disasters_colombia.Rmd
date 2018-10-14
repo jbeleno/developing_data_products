@@ -1,0 +1,104 @@
+---
+title: "Floods in Colombia (1999-2013)"
+author: "Juan Sebastián Beleño Díaz"
+date: "10/10/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This map shows the floods in Colombia between 1999 and 2013. The circle radius is proportional to the frequency of floods in each city during the period of time studied.
+
+```{r, warning=FALSE, echo=FALSE}
+# Downloading and uncompressing a dataset of places in Colombia
+url_cities_co = 'http://download.geonames.org/export/dump/CO.zip'
+download.file(url_cities_co, destfile='./raw_data/CO.zip', mode='wb')
+unzip ('./raw_data/CO.zip', exdir = './raw_data/')
+
+# Reading the dataset of places in colombia
+places_colombia <- read.csv(file='./raw_data/CO.txt', header=FALSE, sep='\t')
+# Columns values are explained in ./raw_data/readme.txt
+colnames(places_colombia) <- c('geonameid', 'name', 'asciiname', 'alternatenames',
+                                'latitude', 'longitude', 'feature_class', 'feature_code',
+                                'country_code', 'cc2', 'admin1_code', 'admin2_code',
+                                'admin3_code', 'admin4_code', 'population',
+                                'elevation', 'dem', 'timezone', 'modification_date')
+# nrow(places_colombia)
+# levels(factor(places_colombia$feature_class))
+columns <- c('name', 'latitude', 'longitude', 'admin1_code')
+country_prefix = 'CO'
+cities_colombia <- subset(places_colombia, feature_class == 'P', select=columns)
+cities_colombia$admin1_code = sprintf("%02d", as.numeric(cities_colombia$admin1_code))
+cities_colombia$admin1_code = paste(country_prefix, cities_colombia$admin1_code, sep='.')
+
+# Downloading and reading data about regions in the world
+url_regions = 'http://download.geonames.org/export/dump/admin1CodesASCII.txt'
+download.file(url_regions, destfile='./raw_data/admin1CodesASCII.txt', mode='wb')
+regions_world <- read.csv(file='./raw_data/admin1CodesASCII.txt', header=FALSE, sep='\t')
+colnames(regions_world) <- c('code', 'name', 'nameAscii', 'geonameid')
+
+# Adding region column to cities in Colombia
+cities_colombia <- merge(x=cities_colombia, y=regions_world, by.x='admin1_code', by.y='code')
+columns <- c('name.x', 'latitude', 'longitude', 'nameAscii')
+cities_colombia <- cities_colombia[columns]
+colnames(cities_colombia) <- c('city', 'latitude', 'longitude', 'region')
+cities_colombia$city <- tolower(cities_colombia$city)
+cities_colombia$region <- tolower(cities_colombia$region)
+cities_colombia <- unique(cities_colombia)
+write.csv(cities_colombia, file = "./intermediate_data/cities_colombia.csv", row.names=FALSE, na="")
+
+# Downloading a dataset about natural disasters in Colombia
+url_disasters= 'https://www.datos.gov.co/api/views/xjv9-mim9/rows.csv?accessType=DOWNLOAD'
+download.file(url_disasters, destfile='./raw_data/disasters_co.csv', mode='wb')
+disasters_co <- read.csv(file='./raw_data/disasters_co.csv', header=TRUE, sep=',')
+columns <- c('fecha', 'departamento', 'municipio', 'evento',
+             'muertos', 'heridos', 'desapa', 'personas', 'familias')
+disasters_co <- disasters_co[columns]
+colnames(disasters_co) <- c('date', 'region', 'city', 'event', 'deaths',
+                            'injured', 'missing_people', 'people_affected',
+                            'families_affected')
+disasters_co$date <- as.POSIXct(disasters_co$date, "%m/%d/%Y %I:%M:%S %p", tz = "America/Bogota")
+# disasters_co$year <- format(disasters_co$date,"%Y")
+columns <- c('date', 'region', 'city')
+floods_co <- subset(disasters_co, event=='INUNDACION', select=columns)
+floods_co$city <- tolower(floods_co$city)
+floods_co$region <- tolower(floods_co$region)
+
+# Trying direct integration by merging datasets
+# floods_co2 <- merge(x=floods_co, y=cities_colombia, by=c('city', 'region'), all.x=TRUE)
+# Looking for troubles in the integration of two different datasets
+# sum(is.na(floods_co2$latitude))
+# floods_co2 <- floods_co2[is.na(floods_co2$latitude),]
+# floods_co2 <- unique(floods_co2[c('city', 'region')])
+# There exist 601 different cities that are not correctly detected in the integration
+
+# We will use a fuzzy approach to match those 601 cities 
+# that are not directly connected in both datasets
+library(fuzzyjoin)
+floods_co <- stringdist_left_join(floods_co, cities_colombia, by = c('city', 'region'),
+                                  distance_col = "distance", max_dist = 1, ignore_case = FALSE)
+
+# I have decided to remove 185 different places from the original dataset
+# because some of them have a wider area not only composed by a single city
+# but many
+floods_co <- floods_co[complete.cases(floods_co),]
+floods_co$name <- paste(floods_co$city.x, floods_co$region.x, sep=' - ')
+columns <- c('latitude', 'longitude', 'name')
+floods_co <- floods_co[columns]
+colnames(floods_co) <- c('lat', 'lng', 'name')
+# Get the number of times a city was flooded
+library(plyr)
+floods_co <- count(floods_co, colnames(floods_co))
+
+# Painting the map with leaflet
+library(leaflet)
+floods_co %>%
+  leaflet() %>%
+  addTiles() %>%
+  addCircles(weight = 1, radius = floods_co$freq * 1000)
+
+```
+
+**Code**: https://github.com/jbeleno/developing_data_products/week2/hw1/
