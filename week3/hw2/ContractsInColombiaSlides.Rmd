@@ -53,3 +53,4 @@ plot_ly(x = summary_contract_co$year, y = summary_contract_co$x, type = "scatter
 
 ## Thanks
 
+Code available at https://github.com/jbeleno/developing_data_products/tree/master/week3/hw2
