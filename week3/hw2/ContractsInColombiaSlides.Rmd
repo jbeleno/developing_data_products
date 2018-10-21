@@ -1,0 +1,55 @@
+---
+title: "Contracts In Colombia"
+author: "Juan Sebastián Beleño Díaz"
+date: "18/10/2018"
+output: ioslides_presentation
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Most used contract types in the colombian government
+
+```{r, comment="", echo=FALSE, eval=TRUE, warning=FALSE, message=FALSE}
+url_contracts_co <- 'https://www.datos.gov.co/api/views/gnxj-bape/rows.csv?accessType=DOWNLOAD'
+download.file(url_contracts_co, destfile='./raw_data/contracts.csv', mode='wb')
+contract_co <- read.csv(file='./raw_data/contracts.csv', header=TRUE, sep=',')
+contract_co$Fecha.de.Inicio.del.Contrato <- as.POSIXct(contract_co$Fecha.de.Inicio.del.Contrato, "%m/%d/%Y %I:%M:%S %p", tz = "America/Bogota")
+contract_co$year <- format(contract_co$Fecha.de.Inicio.del.Contrato,"%Y")
+columns <- c("Tipo.de.Contrato", "year", "Valor.del.Contrato")
+contract_co <- contract_co[columns]
+colnames(contract_co) <- c("contract_type", "year", "value")
+contract_co <- contract_co[complete.cases(contract_co),]
+dollar_exchange_rate = 3078.25
+billion_dollar = 1000000000
+contract_co$value <- contract_co$value / dollar_exchange_rate
+contract_co <- subset(contract_co, value > 0 & value < billion_dollar, select = colnames(contract_co))
+
+library(plyr)
+histogram <- count(contract_co, c("contract_type"))
+hist_top8 <- head(histogram[order(-histogram$freq),], 8)
+rownames(hist_top8) <- NULL
+hist_top8 <- droplevels(hist_top8)
+contract_co <- contract_co[contract_co$contract_type %in% hist_top8$contract_type, ]
+contract_co <- droplevels(contract_co)
+
+
+library(ggplot2)
+library(plotly)
+plot_ly(x = contract_co$contract_type,  type = "histogram")
+```
+
+## Value of contracts (in billions of USD) in the colombian government
+
+```{r, comment="", echo=FALSE, eval=TRUE, warning=FALSE, message=FALSE}
+values <- contract_co[order(-contract_co$value),]
+summary_contract_co <- aggregate(contract_co$value, by=list(contract_type=contract_co$contract_type, year=contract_co$year), FUN=sum)
+summary_contract_co$value <- summary_contract_co$x / billion_dollar
+plot_ly(x = summary_contract_co$year, y = summary_contract_co$x, type = "scatter", 
+        mode = "markers", color = ~factor(summary_contract_co$contract_type))
+```
+
+## Thanks
+
