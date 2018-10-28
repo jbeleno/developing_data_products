@@ -1,0 +1,10 @@
+name: breast_cancer_predictor
+title:
+username:
+account: jbeleno
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 539061
+bundleId: 1668086
+url: https://jbeleno.shinyapps.io/breast_cancer_predictor/
+when: 1540751938.93848
